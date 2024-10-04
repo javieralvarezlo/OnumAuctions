@@ -12,7 +12,7 @@ type Auction struct {
 }
 
 type Bid struct {
-	BidID     string `json:"bidId" bson:"-"`
+	BidID     string `json:"bidId" bson:"_id,omitempty"`
 	AuctionID string `json:"auctionId" bson:"auctionId" binding:"required"`
 	Value     int    `json:"value" bson:"value" binding:"required"`
 	ClientID  string `json:"clientId" bson:"clientId" binding:"required"`
