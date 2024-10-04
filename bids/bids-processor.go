@@ -57,5 +57,7 @@ func updateStatus(bid Bid, status string) {
 	_, err := collection.UpdateOne(context.TODO(), filter, update)
 	failOnError(err, "Error updating bid")
 
+	bid.Status = status
+
 	defer notifyUser(bid)
 }
