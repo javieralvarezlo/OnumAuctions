@@ -31,7 +31,6 @@ func createAuction(c *gin.Context) {
 	}
 
 	response := sendCreationAuction(auctionJson)
-	fmt.Println(response)
 
 	json.Unmarshal(response, &newAuction)
 
