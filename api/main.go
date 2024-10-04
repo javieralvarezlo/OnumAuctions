@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 func main() {
@@ -99,28 +97,17 @@ func searchAuctions(c *gin.Context) {
 		return
 	}
 
-	mongoClient := Connect()
+	searchParams := AuctionSearchParams{From: fromInt, To: toInt}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	query := bson.M{
-		"bidStartTime": bson.M{"$gte": fromInt},
-		"bidEndTime":   bson.M{"$lte": toInt},
+	paramsJson, err := json.Marshal(searchParams)
+	if err != nil {
+		fmt.Printf("Error marshaling: %s", err)
 	}
-	cursor, err := mongoClient.Database("auctions").Collection("auctions").Find(ctx, query)
-	failOnError(err, "Error fetching auctions")
-	defer cursor.Close(ctx)
+
+	result := sendSearchAuctions(paramsJson)
 
 	var auctions []Auction
-	for cursor.Next(context.Background()) {
-		var current Auction
-		fmt.Println(current)
-		cursor.Decode(&current)
-		fmt.Println(11)
-		fmt.Println(current)
-		auctions = append(auctions, current)
-	}
+	json.Unmarshal(result, &auctions)
 
 	if len(auctions) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{

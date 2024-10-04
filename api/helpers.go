@@ -20,6 +20,11 @@ type Bid struct {
 	Status    string `json:"status" bson:"status"`
 }
 
+type AuctionSearchParams struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
 func failOnError(err error, msg string) {
 	if err != nil {
 		log.Panicf("%s: %s", msg, err)

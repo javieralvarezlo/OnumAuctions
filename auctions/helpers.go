@@ -11,6 +11,11 @@ type Auction struct {
 	BidEndTime   int64  `json:"bidEndTime" bson:"bidEndTime" binding:"required"`
 }
 
+type AuctionSearchParams struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
 func failOnError(err error, msg string) {
 	if err != nil {
 		log.Panicf("%s: %s", msg, err)
