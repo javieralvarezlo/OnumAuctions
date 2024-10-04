@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -18,6 +17,8 @@ func main() {
 
 	router.GET("/auctions", searchAuctions)
 
+	router.GET("/auctions/:auctionId/bids/:clientId", searchBids)
+
 	router.POST("/bids", createBid)
 
 	router.Run(":8080")
@@ -31,14 +32,7 @@ func createAuction(c *gin.Context) {
 		return
 	}
 
-	auctionJson, err := json.Marshal(newAuction)
-	if err != nil {
-		fmt.Printf("Error marshaling: %s", err)
-	}
-
-	response := sendCreationAuction(auctionJson)
-
-	json.Unmarshal(response, &newAuction)
+	newAuction = sendCreationAuction(newAuction)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"auction": newAuction,
@@ -53,14 +47,7 @@ func createBid(c *gin.Context) {
 		return
 	}
 
-	bidJson, err := json.Marshal(newBid)
-	if err != nil {
-		fmt.Printf("Error marshaling: %s", err)
-	}
-
-	response := sendCreationBid(bidJson)
-
-	json.Unmarshal(response, &newBid)
+	newBid = sendCreationBid(newBid)
 
 	if newBid.BidID == "-1" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -99,15 +86,7 @@ func searchAuctions(c *gin.Context) {
 
 	searchParams := AuctionSearchParams{From: fromInt, To: toInt}
 
-	paramsJson, err := json.Marshal(searchParams)
-	if err != nil {
-		fmt.Printf("Error marshaling: %s", err)
-	}
-
-	result := sendSearchAuctions(paramsJson)
-
-	var auctions []Auction
-	json.Unmarshal(result, &auctions)
+	auctions := sendSearchAuctions(searchParams)
 
 	if len(auctions) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -121,4 +100,25 @@ func searchAuctions(c *gin.Context) {
 		"auctions": auctions,
 	})
 
+}
+
+func searchBids(c *gin.Context) {
+	auctionId := c.Param("auctionId")
+	clientId := c.Param("clientId")
+
+	searchParams := BidSearchParams{ClientID: clientId, AuctionID: auctionId}
+
+	bids := sendSearchBids(searchParams)
+
+	if len(bids) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "There are not bids for this client on this auction",
+		})
+
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"bids": bids,
+	})
 }

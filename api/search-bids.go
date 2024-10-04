@@ -8,7 +8,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func sendCreationAuction(auction Auction) Auction {
+func sendSearchBids(params BidSearchParams) []Bid {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
@@ -38,29 +38,29 @@ func sendCreationAuction(auction Auction) Auction {
 	failOnError(err, "Failed to register a consumer")
 
 	correlationId := fmt.Sprintf("%d", time.Now().Nanosecond())
-	auctionJson, _ := json.Marshal(auction)
+	paramsJson, _ := json.Marshal(params)
 
 	err = ch.Publish(
 		"",
-		"create_auctions",
+		"search_bids",
 		false,
 		false,
 		amqp.Publishing{
 			ContentType:   "application/json",
 			CorrelationId: correlationId,
 			ReplyTo:       q.Name,
-			Body:          []byte(auctionJson),
+			Body:          []byte(paramsJson),
 		})
 	failOnError(err, "Failed to publish a message")
 
-	var newAuction Auction
+	var bids []Bid
 
 	for d := range msgs {
 		if correlationId == d.CorrelationId {
-			json.Unmarshal(d.Body, &newAuction)
-			return newAuction
+			json.Unmarshal(d.Body, &bids)
+			return bids
 		}
 	}
 
-	return newAuction
+	return nil
 }

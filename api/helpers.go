@@ -25,6 +25,11 @@ type AuctionSearchParams struct {
 	To   int `json:"to"`
 }
 
+type BidSearchParams struct {
+	AuctionID string `json:"acutionId"`
+	ClientID  string `json:"clientId"`
+}
+
 func failOnError(err error, msg string) {
 	if err != nil {
 		log.Panicf("%s: %s", msg, err)

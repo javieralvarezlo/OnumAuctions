@@ -1,13 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func sendCreationBid(bid []byte) []byte {
+func sendCreationBid(bid Bid) Bid {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
@@ -37,6 +38,7 @@ func sendCreationBid(bid []byte) []byte {
 	failOnError(err, "Failed to register a consumer")
 
 	correlationId := fmt.Sprintf("%d", time.Now().Nanosecond())
+	bidJson, _ := json.Marshal(bid)
 
 	err = ch.Publish(
 		"",
@@ -47,15 +49,17 @@ func sendCreationBid(bid []byte) []byte {
 			ContentType:   "application/json",
 			CorrelationId: correlationId,
 			ReplyTo:       q.Name,
-			Body:          []byte(bid),
+			Body:          []byte(bidJson),
 		})
 	failOnError(err, "Failed to publish a message")
+	var newBid Bid
 
 	for d := range msgs {
 		if correlationId == d.CorrelationId {
-			return d.Body
+			json.Unmarshal(d.Body, &newBid)
+			return newBid
 		}
 	}
 
-	return nil
+	return newBid
 }
