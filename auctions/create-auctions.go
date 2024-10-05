@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	h "auctions/helper"
 )
 
-func createAuction(auction Auction) Auction {
+func createAuction(auction h.Auction) h.Auction {
 	mongoClient := Connect()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

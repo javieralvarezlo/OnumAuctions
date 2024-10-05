@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 
+	h "auctions/helper"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
+	h.FailOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
 	go recieveMessages(conn, "create_bids", handleBidCreate)
@@ -21,7 +23,7 @@ func main() {
 
 func recieveMessages(conn *amqp.Connection, queueName string, processFunction func(amqp.Delivery, *amqp.Channel)) {
 	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
+	h.FailOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
 	_, err = ch.QueueDeclare(
@@ -32,7 +34,7 @@ func recieveMessages(conn *amqp.Connection, queueName string, processFunction fu
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to declare a queue")
+	h.FailOnError(err, "Failed to declare a queue")
 
 	msgs, err := ch.Consume(
 		queueName,
@@ -43,7 +45,7 @@ func recieveMessages(conn *amqp.Connection, queueName string, processFunction fu
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to register a consumer")
+	h.FailOnError(err, "Failed to register a consumer")
 
 	for d := range msgs {
 		log.Printf("Recieved a message from %s: %s", queueName, d.Body)
@@ -52,7 +54,7 @@ func recieveMessages(conn *amqp.Connection, queueName string, processFunction fu
 }
 
 func handleBidCreate(d amqp.Delivery, channel *amqp.Channel) {
-	var bid Bid
+	var bid h.Bid
 	err := json.Unmarshal(d.Body, &bid)
 
 	if err != nil {
@@ -76,11 +78,11 @@ func handleBidCreate(d amqp.Delivery, channel *amqp.Channel) {
 			CorrelationId: d.CorrelationId,
 		},
 	)
-	failOnError(err, "Error sending return message")
+	h.FailOnError(err, "Error sending return message")
 }
 
 func handleBidsSearch(d amqp.Delivery, channel *amqp.Channel) {
-	var params BidSearchParams
+	var params h.BidSearchParams
 	err := json.Unmarshal(d.Body, &params)
 
 	if err != nil {
@@ -104,5 +106,5 @@ func handleBidsSearch(d amqp.Delivery, channel *amqp.Channel) {
 			CorrelationId: d.CorrelationId,
 		},
 	)
-	failOnError(err, "Error sending return message")
+	h.FailOnError(err, "Error sending return message")
 }

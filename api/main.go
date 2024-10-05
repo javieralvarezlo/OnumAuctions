@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	h "auctions/helper"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,14 +27,16 @@ func main() {
 }
 
 func createAuction(c *gin.Context) {
-	var newAuction Auction
+	var newAuction h.Auction
 
 	if err := c.ShouldBindJSON(&newAuction); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if newAuction.BidEndTime < time.Now().Unix() {
+	if newAuction.BidEndTime < time.Now().UnixMilli() {
+		fmt.Println(22)
+		fmt.Printf("EndTime: %d, Now: %d, Diff: %d", newAuction.BidEndTime, time.Now().UnixMilli(), newAuction.BidEndTime-time.Now().UnixMilli())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "The auction can not finish in the past"})
 		return
 	}
@@ -45,7 +49,7 @@ func createAuction(c *gin.Context) {
 }
 
 func createBid(c *gin.Context) {
-	var newBid Bid
+	var newBid h.Bid
 
 	if err := c.ShouldBindJSON(&newBid); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -89,7 +93,7 @@ func searchAuctions(c *gin.Context) {
 		return
 	}
 
-	searchParams := AuctionSearchParams{From: fromInt, To: toInt}
+	searchParams := h.AuctionSearchParams{From: fromInt, To: toInt}
 
 	auctions := sendSearchAuctions(searchParams)
 
@@ -111,7 +115,7 @@ func searchBids(c *gin.Context) {
 	auctionId := c.Param("auctionId")
 	clientId := c.Param("clientId")
 
-	searchParams := BidSearchParams{ClientID: clientId, AuctionID: auctionId}
+	searchParams := h.BidSearchParams{ClientID: clientId, AuctionID: auctionId}
 
 	bids := sendSearchBids(searchParams)
 

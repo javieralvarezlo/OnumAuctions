@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"time"
 
+	h "auctions/helper"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func sendCreationBid(bid Bid) Bid {
+func sendCreationBid(bid h.Bid) h.Bid {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
+	h.FailOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
 	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
+	h.FailOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
@@ -25,7 +27,7 @@ func sendCreationBid(bid Bid) Bid {
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to declare a queue")
+	h.FailOnError(err, "Failed to declare a queue")
 
 	msgs, err := ch.Consume(
 		q.Name,
@@ -35,7 +37,7 @@ func sendCreationBid(bid Bid) Bid {
 		false,
 		false,
 		nil)
-	failOnError(err, "Failed to register a consumer")
+	h.FailOnError(err, "Failed to register a consumer")
 
 	correlationId := fmt.Sprintf("%d", time.Now().Nanosecond())
 	bidJson, _ := json.Marshal(bid)
@@ -51,8 +53,8 @@ func sendCreationBid(bid Bid) Bid {
 			ReplyTo:       q.Name,
 			Body:          []byte(bidJson),
 		})
-	failOnError(err, "Failed to publish a message")
-	var newBid Bid
+	h.FailOnError(err, "Failed to publish a message")
+	var newBid h.Bid
 
 	for d := range msgs {
 		if correlationId == d.CorrelationId {

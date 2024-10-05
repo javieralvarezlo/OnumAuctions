@@ -6,13 +6,14 @@ import (
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+
+	h "auctions/helper"
 )
 
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
+	h.FailOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
-
 	go recieveMessages(conn, "create_auctions", handleAuctionCreate)
 	go recieveMessages(conn, "search_auctions", handleSearchAuctions)
 	go recieveDelayMessages(conn, "close_auctions", handleCloseAuctions)
@@ -22,7 +23,7 @@ func main() {
 
 func recieveMessages(conn *amqp.Connection, queueName string, processFunction func(amqp.Delivery, *amqp.Channel)) {
 	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
+	h.FailOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
 	_, err = ch.QueueDeclare(
@@ -33,7 +34,7 @@ func recieveMessages(conn *amqp.Connection, queueName string, processFunction fu
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to declare a queue")
+	h.FailOnError(err, "Failed to declare a queue")
 
 	msgs, err := ch.Consume(
 		queueName,
@@ -44,7 +45,7 @@ func recieveMessages(conn *amqp.Connection, queueName string, processFunction fu
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to register a consumer")
+	h.FailOnError(err, "Failed to register a consumer")
 
 	for d := range msgs {
 		log.Printf("Recieved a message from %s: %s", queueName, d.Body)
@@ -54,7 +55,7 @@ func recieveMessages(conn *amqp.Connection, queueName string, processFunction fu
 
 func recieveDelayMessages(conn *amqp.Connection, queueName string, processFunction func(amqp.Delivery, *amqp.Channel)) {
 	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
+	h.FailOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
 	err = ch.ExchangeDeclare(
@@ -66,7 +67,7 @@ func recieveDelayMessages(conn *amqp.Connection, queueName string, processFuncti
 		false,
 		amqp.Table{"x-delayed-type": "direct"},
 	)
-	failOnError(err, "Error creating exchange")
+	h.FailOnError(err, "Error creating exchange")
 
 	q, err := ch.QueueDeclare(
 		"delayed_queue",
@@ -76,7 +77,7 @@ func recieveDelayMessages(conn *amqp.Connection, queueName string, processFuncti
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to declare a queue")
+	h.FailOnError(err, "Failed to declare a queue")
 
 	err = ch.QueueBind(
 		q.Name,             // nombre de la cola
@@ -85,7 +86,7 @@ func recieveDelayMessages(conn *amqp.Connection, queueName string, processFuncti
 		false,
 		nil,
 	)
-	failOnError(err, "Error binding the exchange to the queue")
+	h.FailOnError(err, "Error binding the exchange to the queue")
 
 	msgs, err := ch.Consume(
 		q.Name,
@@ -96,7 +97,7 @@ func recieveDelayMessages(conn *amqp.Connection, queueName string, processFuncti
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to register a consumer")
+	h.FailOnError(err, "Failed to register a consumer")
 
 	for d := range msgs {
 		log.Printf("Recieved a delayed message from %s: %s", queueName, d.Body)
@@ -105,7 +106,7 @@ func recieveDelayMessages(conn *amqp.Connection, queueName string, processFuncti
 }
 
 func handleAuctionCreate(d amqp.Delivery, channel *amqp.Channel) {
-	var auction Auction
+	var auction h.Auction
 	err := json.Unmarshal(d.Body, &auction)
 
 	if err != nil {
@@ -129,11 +130,11 @@ func handleAuctionCreate(d amqp.Delivery, channel *amqp.Channel) {
 			CorrelationId: d.CorrelationId,
 		},
 	)
-	failOnError(err, "Error sending return message")
+	h.FailOnError(err, "Error sending return message")
 }
 
 func handleSearchAuctions(d amqp.Delivery, channel *amqp.Channel) {
-	var params AuctionSearchParams
+	var params h.AuctionSearchParams
 	json.Unmarshal(d.Body, &params)
 
 	result := getAllAuctions(params)
@@ -153,27 +154,13 @@ func handleSearchAuctions(d amqp.Delivery, channel *amqp.Channel) {
 			CorrelationId: d.CorrelationId,
 		},
 	)
-	failOnError(err, "Error sending return message")
+	h.FailOnError(err, "Error sending return message")
 }
 
 func handleCloseAuctions(d amqp.Delivery, channel *amqp.Channel) {
-	var auction Auction
+	var auction h.Auction
 	json.Unmarshal(d.Body, &auction)
 
-	//result := getAllAuctions(params)
-	auction.StartValue = -1
-	resultJson, _ := json.Marshal(auction)
+	closeAuction(auction)
 
-	err := channel.Publish(
-		"",
-		d.ReplyTo,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType:   "application/json",
-			Body:          []byte(resultJson),
-			CorrelationId: d.CorrelationId,
-		},
-	)
-	failOnError(err, "Error sending return message")
 }

@@ -7,17 +7,19 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	h "auctions/helper"
 )
 
-func createBid(bid Bid) Bid {
+func createBid(bid h.Bid) h.Bid {
 	mongoClient := Connect()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	var auction Auction
+	var auction h.Auction
 	auctionId, err := primitive.ObjectIDFromHex(bid.AuctionID)
-	failOnError(err, "Error converting Object ID from Hex")
+	h.FailOnError(err, "Error converting Object ID from Hex")
 
 	err = mongoClient.Database("auctions").Collection("auctions").FindOne(ctx, bson.D{{Key: "_id", Value: auctionId}}).Decode(&auction)
 	if err != nil {

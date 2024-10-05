@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+
+	h "auctions/helper"
 )
 
-func searchBids(params BidSearchParams) []Bid {
+func searchBids(params h.BidSearchParams) []h.Bid {
 	mongoClient := Connect()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -18,12 +20,12 @@ func searchBids(params BidSearchParams) []Bid {
 		"auctionId": bson.M{"$eq": params.AuctionID},
 	}
 	cursor, err := mongoClient.Database("auctions").Collection("bids").Find(ctx, query)
-	failOnError(err, "Error fetching bids")
+	h.FailOnError(err, "Error fetching bids")
 	defer cursor.Close(ctx)
 
-	var bids []Bid
+	var bids []h.Bid
 	for cursor.Next(context.Background()) {
-		var current Bid
+		var current h.Bid
 		cursor.Decode(&current)
 		bids = append(bids, current)
 	}

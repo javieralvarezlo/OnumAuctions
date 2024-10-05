@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"time"
 
+	h "auctions/helper"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func sendCreationAuction(auction Auction) Auction {
+func sendCreationAuction(auction h.Auction) h.Auction {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
+	h.FailOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
 	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
+	h.FailOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
@@ -25,7 +27,7 @@ func sendCreationAuction(auction Auction) Auction {
 		false,
 		nil,
 	)
-	failOnError(err, "Failed to declare a queue")
+	h.FailOnError(err, "Failed to declare a queue")
 
 	msgs, err := ch.Consume(
 		q.Name,
@@ -35,7 +37,7 @@ func sendCreationAuction(auction Auction) Auction {
 		false,
 		false,
 		nil)
-	failOnError(err, "Failed to register a consumer")
+	h.FailOnError(err, "Failed to register a consumer")
 
 	correlationId := fmt.Sprintf("%d", time.Now().Nanosecond())
 	auctionJson, _ := json.Marshal(auction)
@@ -51,9 +53,9 @@ func sendCreationAuction(auction Auction) Auction {
 			ReplyTo:       q.Name,
 			Body:          []byte(auctionJson),
 		})
-	failOnError(err, "Failed to publish a message")
+	h.FailOnError(err, "Failed to publish a message")
 
-	var newAuction Auction
+	var newAuction h.Auction
 
 	for d := range msgs {
 		if correlationId == d.CorrelationId {
@@ -65,13 +67,13 @@ func sendCreationAuction(auction Auction) Auction {
 	return newAuction
 }
 
-func sendClosingAuction(auction Auction) {
+func sendClosingAuction(auction h.Auction) {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
+	h.FailOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
 	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
+	h.FailOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
 	err = ch.ExchangeDeclare(
@@ -83,11 +85,14 @@ func sendClosingAuction(auction Auction) {
 		false,
 		amqp.Table{"x-delayed-type": "direct"},
 	)
-	failOnError(err, "Failed to declare an exchange")
+	h.FailOnError(err, "Failed to declare an exchange")
 
 	auctionJson, _ := json.Marshal(auction)
-	currentTimestamp := time.Now().Unix()
-	delay := (auction.BidEndTime - currentTimestamp) * 1000
+	currentTimestamp := time.Now().UnixMilli()
+	delay := (auction.BidEndTime - currentTimestamp)
+	fmt.Println(111)
+	fmt.Printf("EndTime: %d, Ts: %d, Delay: %d", auction.BidEndTime, currentTimestamp, delay)
+	fmt.Println(delay)
 
 	err = ch.Publish(
 		"delayed_exchange",
@@ -102,6 +107,6 @@ func sendClosingAuction(auction Auction) {
 			},
 		})
 
-	failOnError(err, "Error publishing delayed message")
+	h.FailOnError(err, "Error publishing delayed message")
 
 }
