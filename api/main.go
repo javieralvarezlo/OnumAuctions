@@ -72,7 +72,7 @@ func createBid(c *gin.Context) {
 }
 
 func searchAuctions(c *gin.Context) {
-	from := c.DefaultQuery("from", fmt.Sprintf("%d", time.Now().Unix()))
+	from := c.DefaultQuery("from", fmt.Sprintf("%d", time.Now().UnixMilli()))
 	to := c.DefaultQuery("to", fmt.Sprintf("%d", time.Unix(1<<63-62135596801, 999999999).Unix()))
 
 	fromInt, err := strconv.Atoi(from)

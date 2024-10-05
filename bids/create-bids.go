@@ -28,13 +28,13 @@ func createBid(bid h.Bid) h.Bid {
 		return bid
 	}
 
-	if time.Now().Unix() < auction.BidStartTime {
+	if time.Now().UnixMilli() < auction.BidStartTime {
 		bid.BidID = "-1"
 		bid.Status = "The auction has not started yet"
 		return bid
 	}
 
-	if time.Now().Unix() > auction.BidEndTime {
+	if time.Now().UnixMilli() > auction.BidEndTime {
 		bid.BidID = "-1"
 		bid.Status = "The auction has already finished"
 		return bid
