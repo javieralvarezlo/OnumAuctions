@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"time"
 
 	h "auctions/helper"
 
@@ -15,96 +15,70 @@ func main() {
 	h.FailOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
-	go recieveMessages(conn, "create_bids", handleBidCreate)
-	go recieveMessages(conn, "search_bids", handleBidsSearch)
+	go h.RecieveMessages(conn, "create_bids", handleBidCreate)
+	go h.RecieveMessages(conn, "search_bids", handleBidsSearch)
 
 	select {}
 }
 
-func recieveMessages(conn *amqp.Connection, queueName string, processFunction func(amqp.Delivery, *amqp.Channel)) {
-	ch, err := conn.Channel()
-	h.FailOnError(err, "Failed to open a channel")
-	defer ch.Close()
-
-	_, err = ch.QueueDeclare(
-		queueName,
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
-	h.FailOnError(err, "Failed to declare a queue")
-
-	msgs, err := ch.Consume(
-		queueName,
-		"",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	h.FailOnError(err, "Failed to register a consumer")
-
-	for d := range msgs {
-		log.Printf("Recieved a message from %s: %s", queueName, d.Body)
-		processFunction(d, ch)
-	}
-}
-
 func handleBidCreate(d amqp.Delivery, channel *amqp.Channel) {
 	var bid h.Bid
-	err := json.Unmarshal(d.Body, &bid)
+	json.Unmarshal(d.Body, &bid)
+
+	auction, err := getBidAuction(bid)
 
 	if err != nil {
-		fmt.Print("Error Unmarshaling")
+		bid.BidID = "-1"
+		bid.Status = "The selected auction does not exist"
+
+		bidData, _ := json.Marshal(bid)
+		h.ReplyMessage(channel, d, bidData)
+		return
 	}
 
-	bid = createBid(bid)
-	bidJson, err := json.Marshal(bid)
-	if err != nil {
-		fmt.Printf("Error marshaling: %s", err)
+	if time.Now().UnixMilli() < auction.BidStartTime {
+		bid.BidID = "-1"
+		bid.Status = "The auction has not started yet"
+
+		bidData, _ := json.Marshal(bid)
+		h.ReplyMessage(channel, d, bidData)
+		return
 	}
 
-	err = channel.Publish(
-		"",
-		d.ReplyTo,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType:   "application/json",
-			Body:          []byte(bidJson),
-			CorrelationId: d.CorrelationId,
-		},
-	)
-	h.FailOnError(err, "Error sending return message")
+	if time.Now().UnixMilli() > auction.BidEndTime {
+		bid.BidID = "-1"
+		bid.Status = "The auction has already finished"
+
+		bidData, _ := json.Marshal(bid)
+		h.ReplyMessage(channel, d, bidData)
+		return
+	}
+
+	if bid.Value < int(auction.StartValue) {
+		bid.BidID = "-1"
+		bid.Status = fmt.Sprint("The initial value of the auction is ", auction.StartValue)
+
+		bidData, _ := json.Marshal(bid)
+		h.ReplyMessage(channel, d, bidData)
+		return
+	}
+
+	bid.Status = "processing"
+
+	bid = insertBid(bid)
+	bidData, _ := json.Marshal(bid)
+
+	defer processBid(bid)
+
+	h.ReplyMessage(channel, d, bidData)
 }
 
 func handleBidsSearch(d amqp.Delivery, channel *amqp.Channel) {
 	var params h.BidSearchParams
-	err := json.Unmarshal(d.Body, &params)
-
-	if err != nil {
-		fmt.Print("Error Unmarshaling")
-	}
+	json.Unmarshal(d.Body, &params)
 
 	result := searchBids(params)
-	resultJson, err := json.Marshal(result)
-	if err != nil {
-		fmt.Printf("Error marshaling: %s", err)
-	}
+	resultData, _ := json.Marshal(result)
 
-	err = channel.Publish(
-		"",
-		d.ReplyTo,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType:   "application/json",
-			Body:          []byte(resultJson),
-			CorrelationId: d.CorrelationId,
-		},
-	)
-	h.FailOnError(err, "Error sending return message")
+	h.ReplyMessage(channel, d, resultData)
 }

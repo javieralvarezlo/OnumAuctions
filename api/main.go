@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -41,39 +43,22 @@ func createAuction(c *gin.Context) {
 		return
 	}
 
-	newAuction = sendCreationAuction(newAuction)
+	auctionJson, _ := json.Marshal(newAuction)
+	response := h.SendRPC("create_auctions", auctionJson)
+
+	delay := (newAuction.BidEndTime - time.Now().UnixMilli())
+	json.Unmarshal(response, &newAuction)
+
+	defer h.SendDelayedMsg(response, delay)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"auction": newAuction,
 	})
 }
 
-func createBid(c *gin.Context) {
-	var newBid h.Bid
-
-	if err := c.ShouldBindJSON(&newBid); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	newBid = sendCreationBid(newBid)
-
-	if newBid.BidID == "-1" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": newBid.Status,
-		})
-
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"bid": newBid,
-	})
-}
-
 func searchAuctions(c *gin.Context) {
 	from := c.DefaultQuery("from", fmt.Sprintf("%d", time.Now().UnixMilli()))
-	to := c.DefaultQuery("to", fmt.Sprintf("%d", time.Unix(1<<63-62135596801, 999999999).Unix()))
+	to := c.DefaultQuery("to", fmt.Sprintf("%d", math.MaxInt64))
 
 	fromInt, err := strconv.Atoi(from)
 	if err != nil {
@@ -95,7 +80,11 @@ func searchAuctions(c *gin.Context) {
 
 	searchParams := h.AuctionSearchParams{From: fromInt, To: toInt}
 
-	auctions := sendSearchAuctions(searchParams)
+	paramsJson, _ := json.Marshal(searchParams)
+	response := h.SendRPC("search_auctions", paramsJson)
+
+	var auctions []h.Auction
+	json.Unmarshal(response, &auctions)
 
 	if len(auctions) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -111,13 +100,42 @@ func searchAuctions(c *gin.Context) {
 
 }
 
+func createBid(c *gin.Context) {
+	var newBid h.Bid
+
+	if err := c.ShouldBindJSON(&newBid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	bidJson, _ := json.Marshal(newBid)
+	response := h.SendRPC("create_bids", bidJson)
+
+	json.Unmarshal(response, &newBid)
+
+	if newBid.BidID == "-1" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": newBid.Status,
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"bid": newBid,
+	})
+}
+
 func searchBids(c *gin.Context) {
 	auctionId := c.Param("auctionId")
 	clientId := c.Param("clientId")
 
 	searchParams := h.BidSearchParams{ClientID: clientId, AuctionID: auctionId}
 
-	bids := sendSearchBids(searchParams)
+	paramsJson, _ := json.Marshal(searchParams)
+	response := h.SendRPC("search_bids", paramsJson)
+
+	var bids []h.Bid
+	json.Unmarshal(response, &bids)
 
 	if len(bids) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
