@@ -5,7 +5,6 @@ import (
 )
 
 func processBid(bid h.Bid) {
-
 	bestBid, err := getBestBid(bid.AuctionID)
 	if err != nil {
 		//Es la primera bid de la auction
@@ -20,5 +19,4 @@ func processBid(bid h.Bid) {
 	}
 
 	h.UpdateStatus(Connect(), bid, "outbided")
-
 }

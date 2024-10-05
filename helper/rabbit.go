@@ -154,9 +154,9 @@ func RecieveDelayMessages(conn *amqp.Connection, queueName string, processFuncti
 	FailOnError(err, "Failed to declare a queue")
 
 	err = ch.QueueBind(
-		q.Name,             // nombre de la cola
-		"delayed_key",      // routing key
-		"delayed_exchange", // exchange
+		q.Name,             
+		"delayed_key",      
+		"delayed_exchange", 
 		false,
 		nil,
 	)
