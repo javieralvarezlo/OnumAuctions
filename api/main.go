@@ -37,8 +37,6 @@ func createAuction(c *gin.Context) {
 	}
 
 	if newAuction.BidEndTime < time.Now().UnixMilli() {
-		fmt.Println(22)
-		fmt.Printf("EndTime: %d, Now: %d, Diff: %d", newAuction.BidEndTime, time.Now().UnixMilli(), newAuction.BidEndTime-time.Now().UnixMilli())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "The auction can not finish in the past"})
 		return
 	}
@@ -65,7 +63,6 @@ func searchAuctions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "From value is not valid",
 		})
-
 		return
 	}
 
@@ -74,7 +71,6 @@ func searchAuctions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "To value is not valid",
 		})
-
 		return
 	}
 
@@ -90,7 +86,6 @@ func searchAuctions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "There are not auctions in this timeframe",
 		})
-
 		return
 	}
 
@@ -141,7 +136,6 @@ func searchBids(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "There are not bids for this client on this auction",
 		})
-
 		return
 	}
 
