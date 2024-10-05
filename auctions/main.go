@@ -15,6 +15,7 @@ func main() {
 
 	go recieveMessages(conn, "create_auctions", handleAuctionCreate)
 	go recieveMessages(conn, "search_auctions", handleSearchAuctions)
+	go recieveDelayMessages(conn, "close_auctions", handleCloseAuctions)
 
 	select {}
 }
@@ -51,6 +52,58 @@ func recieveMessages(conn *amqp.Connection, queueName string, processFunction fu
 	}
 }
 
+func recieveDelayMessages(conn *amqp.Connection, queueName string, processFunction func(amqp.Delivery, *amqp.Channel)) {
+	ch, err := conn.Channel()
+	failOnError(err, "Failed to open a channel")
+	defer ch.Close()
+
+	err = ch.ExchangeDeclare(
+		"delayed_exchange",
+		"x-delayed-message",
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{"x-delayed-type": "direct"},
+	)
+	failOnError(err, "Error creating exchange")
+
+	q, err := ch.QueueDeclare(
+		"delayed_queue",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	failOnError(err, "Failed to declare a queue")
+
+	err = ch.QueueBind(
+		q.Name,             // nombre de la cola
+		"delayed_key",      // routing key
+		"delayed_exchange", // exchange
+		false,
+		nil,
+	)
+	failOnError(err, "Error binding the exchange to the queue")
+
+	msgs, err := ch.Consume(
+		q.Name,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	failOnError(err, "Failed to register a consumer")
+
+	for d := range msgs {
+		log.Printf("Recieved a delayed message from %s: %s", queueName, d.Body)
+		processFunction(d, ch)
+	}
+}
+
 func handleAuctionCreate(d amqp.Delivery, channel *amqp.Channel) {
 	var auction Auction
 	err := json.Unmarshal(d.Body, &auction)
@@ -81,11 +134,7 @@ func handleAuctionCreate(d amqp.Delivery, channel *amqp.Channel) {
 
 func handleSearchAuctions(d amqp.Delivery, channel *amqp.Channel) {
 	var params AuctionSearchParams
-	err := json.Unmarshal(d.Body, &params)
-
-	if err != nil {
-		fmt.Print("Error Unmarshaling")
-	}
+	json.Unmarshal(d.Body, &params)
 
 	result := getAllAuctions(params)
 	resultJson, err := json.Marshal(result)
@@ -94,6 +143,28 @@ func handleSearchAuctions(d amqp.Delivery, channel *amqp.Channel) {
 	}
 
 	err = channel.Publish(
+		"",
+		d.ReplyTo,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:   "application/json",
+			Body:          []byte(resultJson),
+			CorrelationId: d.CorrelationId,
+		},
+	)
+	failOnError(err, "Error sending return message")
+}
+
+func handleCloseAuctions(d amqp.Delivery, channel *amqp.Channel) {
+	var auction Auction
+	json.Unmarshal(d.Body, &auction)
+
+	//result := getAllAuctions(params)
+	auction.StartValue = -1
+	resultJson, _ := json.Marshal(auction)
+
+	err := channel.Publish(
 		"",
 		d.ReplyTo,
 		false,

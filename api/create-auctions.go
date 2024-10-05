@@ -58,9 +58,50 @@ func sendCreationAuction(auction Auction) Auction {
 	for d := range msgs {
 		if correlationId == d.CorrelationId {
 			json.Unmarshal(d.Body, &newAuction)
+			defer sendClosingAuction(newAuction)
 			return newAuction
 		}
 	}
-
 	return newAuction
+}
+
+func sendClosingAuction(auction Auction) {
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	failOnError(err, "Failed to connect to RabbitMQ")
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	failOnError(err, "Failed to open a channel")
+	defer ch.Close()
+
+	err = ch.ExchangeDeclare(
+		"delayed_exchange",
+		"x-delayed-message",
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{"x-delayed-type": "direct"},
+	)
+	failOnError(err, "Failed to declare an exchange")
+
+	auctionJson, _ := json.Marshal(auction)
+	currentTimestamp := time.Now().Unix()
+	delay := (auction.BidEndTime - currentTimestamp) * 1000
+
+	err = ch.Publish(
+		"delayed_exchange",
+		"delayed_key",
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(auctionJson),
+			Headers: amqp.Table{
+				"x-delay": int32(delay),
+			},
+		})
+
+	failOnError(err, "Error publishing delayed message")
+
 }

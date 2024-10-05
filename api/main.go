@@ -32,6 +32,11 @@ func createAuction(c *gin.Context) {
 		return
 	}
 
+	if newAuction.BidEndTime < time.Now().Unix() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The auction can not finish in the past"})
+		return
+	}
+
 	newAuction = sendCreationAuction(newAuction)
 
 	c.JSON(http.StatusCreated, gin.H{
